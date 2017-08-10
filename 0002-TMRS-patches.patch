@@ -1,0 +1,39 @@
+From be5194943aa02c496b19de04464a474db70d5774 Mon Sep 17 00:00:00 2001
+From: Rob Ratcliff <rob@futuretek.com>
+Date: Mon, 7 Aug 2017 23:38:48 -0500
+Subject: [PATCH 2/2] TMRS patches
+
+---
+ ArduCopter/version.h                      | 2 +-
+ libraries/AP_BattMonitor/AP_BattMonitor.h | 2 +-
+ 2 files changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/ArduCopter/version.h b/ArduCopter/version.h
+index 3db5450..46f205f 100644
+--- a/ArduCopter/version.h
++++ b/ArduCopter/version.h
+@@ -2,7 +2,7 @@
+ 
+ #include "ap_version.h"
+ 
+-#define THISFIRMWARE "APM:Copter V3.5.2-rc1"
++#define THISFIRMWARE "APM:Copter V3.5.2-rc1-rev1"
+ #define FIRMWARE_VERSION 3,5,2,FIRMWARE_VERSION_TYPE_BETA
+ 
+ #ifndef GIT_VERSION
+diff --git a/libraries/AP_BattMonitor/AP_BattMonitor.h b/libraries/AP_BattMonitor/AP_BattMonitor.h
+index 46c80d3..f677a97 100644
+--- a/libraries/AP_BattMonitor/AP_BattMonitor.h
++++ b/libraries/AP_BattMonitor/AP_BattMonitor.h
+@@ -12,7 +12,7 @@
+ #define AP_BATT_PRIMARY_INSTANCE            0
+ 
+ #define AP_BATT_CAPACITY_DEFAULT            3300
+-#define AP_BATT_LOW_VOLT_TIMEOUT_DEFAULT    10   // low voltage of 10 seconds will cause battery_exhausted to return true
++#define AP_BATT_LOW_VOLT_TIMEOUT_DEFAULT    1   // low voltage of 1 seconds will cause battery_exhausted to return true
+ #define AP_BATT_MAX_WATT_DEFAULT            0
+ #define AP_BATT_SERIAL_NUMBER_DEFAULT       -1
+ 
+-- 
+1.9.5.msysgit.0
+
