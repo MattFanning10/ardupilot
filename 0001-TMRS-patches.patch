@@ -1,0 +1,40 @@
+From 7299feb4ae3baa18c3fd836abad08ff6a2d361b2 Mon Sep 17 00:00:00 2001
+From: Rob Ratcliff <rob@futuretek.com>
+Date: Fri, 6 Jan 2017 20:41:57 -0600
+Subject: [PATCH 1/2] TMRS patches
+
+---
+ ArduCopter/config.h   | 2 +-
+ ArduCopter/events.cpp | 3 ++-
+ 2 files changed, 3 insertions(+), 2 deletions(-)
+
+diff --git a/ArduCopter/config.h b/ArduCopter/config.h
+index de18851..364c5cc 100644
+--- a/ArduCopter/config.h
++++ b/ArduCopter/config.h
+@@ -161,7 +161,7 @@
+  # define FS_GCS                        DISABLED
+ #endif
+ #ifndef FS_GCS_TIMEOUT_MS
+- # define FS_GCS_TIMEOUT_MS             5000    // gcs failsafe triggers after 5 seconds with no GCS heartbeat
++ # define FS_GCS_TIMEOUT_MS             10000    // gcs failsafe triggers after 10 seconds with no GCS heartbeat
+ #endif
+ 
+ // Radio failsafe while using RC_override
+diff --git a/ArduCopter/events.cpp b/ArduCopter/events.cpp
+index b6d22a1..5ae5610 100644
+--- a/ArduCopter/events.cpp
++++ b/ArduCopter/events.cpp
+@@ -78,7 +78,8 @@ void Copter::failsafe_gcs_check()
+ 
+     // return immediately if gcs failsafe is disabled, gcs has never been connected or we are not overriding rc controls from the gcs and we are not in guided mode
+     // this also checks to see if we have a GCS failsafe active, if we do, then must continue to process the logic for recovery from this state.
+-    if ((!failsafe.gcs)&&(g.failsafe_gcs == FS_GCS_DISABLED || failsafe.last_heartbeat_ms == 0 || (!failsafe.rc_override_active && control_mode != GUIDED))) {
++//    if ((!failsafe.gcs)&&(g.failsafe_gcs == FS_GCS_DISABLED || failsafe.last_heartbeat_ms == 0 || (!failsafe.rc_override_active && control_mode != GUIDED))) {
++    if ((!failsafe.gcs)&&(g.failsafe_gcs == FS_GCS_DISABLED || failsafe.last_heartbeat_ms == 0 )) {
+         return;
+     }
+ 
+-- 
+1.9.5.msysgit.0
+
