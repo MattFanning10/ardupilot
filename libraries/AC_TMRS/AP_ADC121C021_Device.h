@@ -29,9 +29,9 @@ public:
 
 //	size_t read(adc_report_s *report, size_t length) const;
 
-	uint8_t get_channels_number() const {
-		return _channels_number;
-	}
+//	uint8_t get_channels_number() const {
+//		return _channels_number;
+//	}
 
 private:
 	static const uint8_t _channels_number;
