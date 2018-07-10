@@ -26,6 +26,7 @@ def build(bld):
             'AP_RCMapper',
             'AP_Avoidance',
             'AP_AdvancedFailsafe',
+            'AP_Proximity',
             'AP_SmartRTL',
             'AP_Stats',
             'AP_Gripper',
@@ -35,6 +36,7 @@ def build(bld):
             'AP_Winch',
             'AP_Follow',
             'AP_Devo_Telem',
+            'AC_TMRS',
         ],
     )
 
