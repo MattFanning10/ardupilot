@@ -343,6 +343,12 @@ PE9  TIM1_CH1 TIM1 PWM(4) GPIO(53)
 PD13 TIM4_CH2 TIM4 PWM(5) GPIO(54)
 PD14 TIM4_CH3 TIM4 PWM(6) GPIO(55)
 
+define BOARD_PWM_COUNT_DEFAULT 4
+
+# relays default to use GPIO pins 54 and 55
+define RELAY1_PIN_DEFAULT 54
+define RELAY2_PIN_DEFAULT 55
+
 # this is the invensense data-ready pin. We don't use it in the
 # default driver
 PD15 MPU_DRDY INPUT
@@ -480,8 +486,8 @@ define HAL_I2C_MAX_CLOCK 100000
 # define CH_DBG_ENABLE_STACK_CHECK TRUE
 
 # we can't share IO UART (USART6)
-DMA_NOSHARE USART6_TX USART6_RX
-DMA_PRIORITY USART6* TIM* SPI*
+DMA_NOSHARE USART6_TX USART6_RX ADC1
+DMA_PRIORITY USART6*
 
 # list of files to put in ROMFS. For fmuv3 we need an IO firmware so
 # we can automatically update the IOMCU firmware on boot. The format

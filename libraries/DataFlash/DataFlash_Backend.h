@@ -91,6 +91,7 @@ public:
     bool Log_Write_Format(const struct LogStructure *structure);
     bool Log_Write_MavCmd(uint16_t cmd_total, const mavlink_mission_item_t& mav_cmd);
     bool Log_Write_Message(const char *message);
+    bool Log_Write_MessageF(const char *fmt, ...);
     bool Log_Write_Mission_Cmd(const AP_Mission &mission,
                                const AP_Mission::Mission_Command &cmd);
     bool Log_Write_Mode(uint8_t mode, uint8_t reason = 0);
@@ -140,8 +141,6 @@ protected:
     /*
       read a block
     */
-    virtual bool ReadBlock(void *pkt, uint16_t size) = 0;
-
     virtual bool WriteBlockCheckStartupMessages();
     virtual void WriteMoreStartupMessages();
     virtual void push_log_blocks();

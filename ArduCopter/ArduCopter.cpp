@@ -439,8 +439,6 @@ void Copter::one_hz_loop()
     // update assigned functions and enable auxiliary servos
     SRV_Channels::enable_aux_servos();
 
-    check_usb_mux();
-
     // log terrain data
     terrain_logging();
 
@@ -473,9 +471,6 @@ void Copter::update_GPS(void)
     }
 
     if (gps_updated) {
-        // set system time if necessary
-        set_system_time_from_GPS();
-
 #if CAMERA == ENABLED
         camera.update();
 #endif
@@ -566,7 +561,7 @@ void Copter::read_AHRS(void)
     ahrs.update(true);
 }
 
-// read baro and rangefinder altitude at 10hz
+// read baro and log control tuning
 void Copter::update_altitude()
 {
     // read in baro altitude

@@ -73,6 +73,8 @@ COMMON_VEHICLE_DEPENDENT_LIBRARIES = [
     'AP_BLHeli',
     'AP_ROMFS',
     'AP_Proximity',
+    'AP_Gripper',
+    'AP_RTC',
 ]
 
 def get_legacy_defines(sketch_name):
@@ -88,6 +90,9 @@ IGNORED_AP_LIBRARIES = [
 
 @conf
 def ap_get_all_libraries(bld):
+    if bld.env.BOOTLOADER:
+        # we don't need the full set of libraries for the bootloader build
+        return ['AP_HAL']
     libraries = []
     for lib_node in bld.srcnode.ant_glob('libraries/*', dir=True, src=False):
         name = lib_node.name

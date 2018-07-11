@@ -152,6 +152,15 @@ void Rover::compass_cal_update() {
     }
 }
 
+// Save compass offsets
+void Rover::compass_save() {
+    if (g.compass_enabled &&
+        compass.get_learn_type() >= Compass::LEARN_INTERNAL &&
+        !arming.is_armed()) {
+        compass.save_offsets();
+    }
+}
+
 // Accel calibration
 
 void Rover::accel_cal_update() {
@@ -226,6 +235,7 @@ void Rover::read_rangefinders(void)
     }
 
     Log_Write_Rangefinder();
+    Log_Write_Depth();
 
     // no object detected - reset after the turn time
     if (obstacle.detected_count >= g.rangefinder_debounce &&

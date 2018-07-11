@@ -65,6 +65,9 @@ protected:
 
 private:
     int _write_fd;
+    char *_write_filename;
+    uint32_t _last_write_ms;
+    
     int _read_fd;
     uint16_t _read_fd_log_num;
     uint32_t _read_offset;
@@ -77,11 +80,6 @@ private:
     uint8_t io_thread_warning_decimation_counter;
 
     uint16_t _cached_oldest_log;
-
-    /*
-      read a block
-    */
-    bool ReadBlock(void *pkt, uint16_t size) override;
 
     uint16_t _log_num_from_list_entry(const uint16_t list_entry);
 

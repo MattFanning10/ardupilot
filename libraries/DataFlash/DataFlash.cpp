@@ -15,6 +15,14 @@ DataFlash_Class *DataFlash_Class::_instance;
 
 extern const AP_HAL::HAL& hal;
 
+#ifndef HAL_DATAFLASH_FILE_BUFSIZE 
+#define HAL_DATAFLASH_FILE_BUFSIZE  16
+#endif 
+
+#ifndef HAL_DATAFLASH_MAV_BUFSIZE 
+#define HAL_DATAFLASH_MAV_BUFSIZE  8
+#endif 
+
 const AP_Param::GroupInfo DataFlash_Class::var_info[] = {
     // @Param: _BACKEND_TYPE
     // @DisplayName: DataFlash Backend Storage type
@@ -27,7 +35,7 @@ const AP_Param::GroupInfo DataFlash_Class::var_info[] = {
     // @DisplayName: Maximum DataFlash File Backend buffer size (in kilobytes)
     // @Description: The DataFlash_File backend uses a buffer to store data before writing to the block device.  Raising this value may reduce "gaps" in your SD card logging.  This buffer size may be reduced depending on available memory.  PixHawk requires at least 4 kilobytes.  Maximum value available here is 64 kilobytes.
     // @User: Standard
-    AP_GROUPINFO("_FILE_BUFSIZE",  1, DataFlash_Class, _params.file_bufsize,       16),
+    AP_GROUPINFO("_FILE_BUFSIZE",  1, DataFlash_Class, _params.file_bufsize,       HAL_DATAFLASH_FILE_BUFSIZE),
 
     // @Param: _DISARMED
     // @DisplayName: Enable logging while disarmed
@@ -55,16 +63,15 @@ const AP_Param::GroupInfo DataFlash_Class::var_info[] = {
     // @Description: Maximum amount of memory to allocate to DataFlash-over-mavlink
     // @User: Advanced
     // @Units: kB
-    AP_GROUPINFO("_MAV_BUFSIZE",  5, DataFlash_Class, _params.mav_bufsize,       8),
+    AP_GROUPINFO("_MAV_BUFSIZE",  5, DataFlash_Class, _params.mav_bufsize,       HAL_DATAFLASH_MAV_BUFSIZE),
 
     AP_GROUPEND
 };
 
 #define streq(x, y) (!strcmp(x, y))
 
-DataFlash_Class::DataFlash_Class(const char *firmware_string, const AP_Int32 &log_bitmask)
-    : _firmware_string(firmware_string)
-    , _log_bitmask(log_bitmask)
+DataFlash_Class::DataFlash_Class(const AP_Int32 &log_bitmask)
+    : _log_bitmask(log_bitmask)
 {
     AP_Param::setup_object_defaults(this, var_info);
     if (_instance != nullptr) {
@@ -93,7 +100,7 @@ void DataFlash_Class::Init(const struct LogStructure *structures, uint8_t num_ty
     if (_params.backend_types == DATAFLASH_BACKEND_FILE ||
         _params.backend_types == DATAFLASH_BACKEND_BOTH) {
         DFMessageWriter_DFLogStart *message_writer =
-            new DFMessageWriter_DFLogStart(_firmware_string);
+            new DFMessageWriter_DFLogStart();
         if (message_writer != nullptr)  {
             backends[_next_backend] = new DataFlash_File(*this,
                                                          message_writer,
@@ -111,7 +118,7 @@ void DataFlash_Class::Init(const struct LogStructure *structures, uint8_t num_ty
         _params.backend_types == DATAFLASH_BACKEND_BOTH) {
 
         DFMessageWriter_DFLogStart *message_writer =
-            new DFMessageWriter_DFLogStart(_firmware_string);
+            new DFMessageWriter_DFLogStart();
         if (message_writer != nullptr)  {
 
   #if defined(BOARD_SDCARD_NAME) || defined(BOARD_DATAFLASH_FATFS)
@@ -138,7 +145,7 @@ void DataFlash_Class::Init(const struct LogStructure *structures, uint8_t num_ty
             return;
         }
         DFMessageWriter_DFLogStart *message_writer =
-            new DFMessageWriter_DFLogStart(_firmware_string);
+            new DFMessageWriter_DFLogStart();
         if (message_writer != nullptr)  {
             backends[_next_backend] = new DataFlash_MAVLink(*this,
                                                             message_writer);

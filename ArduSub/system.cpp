@@ -24,7 +24,7 @@ void Sub::init_ardupilot()
 
     hal.console->printf("\n\nInit %s"
                         "\n\nFree RAM: %u\n",
-                        fwver.fw_string,
+                        AP::fwversion().fw_string,
                         (unsigned)hal.util->available_memory());
 
     // load parameters from EEPROM
@@ -260,10 +260,10 @@ bool Sub::ekf_position_ok()
     // if disarmed we accept a predicted horizontal position
     if (!motors.armed()) {
         return ((filt_status.flags.horiz_pos_abs || filt_status.flags.pred_horiz_pos_abs));
-    } else {
-        // once armed we require a good absolute position and EKF must not be in const_pos_mode
-        return (filt_status.flags.horiz_pos_abs && !filt_status.flags.const_pos_mode);
     }
+
+    // once armed we require a good absolute position and EKF must not be in const_pos_mode
+    return (filt_status.flags.horiz_pos_abs && !filt_status.flags.const_pos_mode);
 }
 
 // optflow_position_ok - returns true if optical flow based position estimate is ok
@@ -283,9 +283,8 @@ bool Sub::optflow_position_ok()
     // if disarmed we accept a predicted horizontal relative position
     if (!motors.armed()) {
         return (filt_status.flags.pred_horiz_pos_rel);
-    } else {
-        return (filt_status.flags.horiz_pos_rel && !filt_status.flags.const_pos_mode);
     }
+    return (filt_status.flags.horiz_pos_rel && !filt_status.flags.const_pos_mode);
 #endif
 }
 

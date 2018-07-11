@@ -50,6 +50,10 @@ bool UARTDriver::_console;
 
 void UARTDriver::begin(uint32_t baud, uint16_t rxSpace, uint16_t txSpace)
 {
+    if (_portNumber > ARRAY_SIZE(_sitlState->_uart_path)) {
+        AP_HAL::panic("port number out of range; you may need to extend _sitlState->_uart_path");
+    }
+
     const char *path = _sitlState->_uart_path[_portNumber];
 
     // default to 1MBit
@@ -94,7 +98,7 @@ void UARTDriver::begin(uint32_t baud, uint16_t rxSpace, uint16_t txSpace)
             _uart_baudrate = baudrate;
             _uart_start_connection();
         } else if (strcmp(devtype, "sim") == 0) {
-            ::printf("SIM connection %s:%s\n", args1, args2);
+            ::printf("SIM connection %s:%s on port %u\n", args1, args2, _portNumber);
             if (!_connected) {
                 _connected = true;
                 _fd = _sitlState->sim_fd(args1, args2);
@@ -103,6 +107,11 @@ void UARTDriver::begin(uint32_t baud, uint16_t rxSpace, uint16_t txSpace)
             AP_HAL::panic("Invalid device path: %s", path);
         }
         free(s);
+    }
+
+    if (hal.console != this) { // don't clear USB buffers (allows early startup messages to escape)
+        _readbuffer.clear();
+        _writebuffer.clear();
     }
 
     _set_nonblocking(_fd);
@@ -222,9 +231,14 @@ void UARTDriver::_tcp_start_connection(uint16_t port, bool wait_for_connection)
         }
         sockaddr.sin_family = AF_INET;
 
-        _listen_fd = socket(AF_INET, SOCK_STREAM | SOCK_CLOEXEC, 0);
+        _listen_fd = socket(AF_INET, SOCK_STREAM, 0);
         if (_listen_fd == -1) {
             fprintf(stderr, "socket failed - %s\n", strerror(errno));
+            exit(1);
+        }
+        ret = fcntl(_listen_fd, F_SETFD, FD_CLOEXEC);
+        if (ret == -1) {
+            fprintf(stderr, "fcntl failed on setting FD_CLOEXEC - %s\n", strerror(errno));
             exit(1);
         }
 
@@ -267,6 +281,7 @@ void UARTDriver::_tcp_start_connection(uint16_t port, bool wait_for_connection)
         }
         setsockopt(_fd, SOL_SOCKET, SO_REUSEADDR, &one, sizeof(one));
         setsockopt(_fd, IPPROTO_TCP, TCP_NODELAY, &one, sizeof(one));
+        fcntl(_fd, F_SETFD, FD_CLOEXEC);
         _connected = true;
     }
 }
@@ -300,9 +315,14 @@ void UARTDriver::_tcp_start_client(const char *address, uint16_t port)
     sockaddr.sin_family = AF_INET;
     sockaddr.sin_addr.s_addr = inet_addr(address);
 
-    _fd = socket(AF_INET, SOCK_STREAM | SOCK_CLOEXEC, 0);
+    _fd = socket(AF_INET, SOCK_STREAM, 0);
     if (_fd == -1) {
         fprintf(stderr, "socket failed - %s\n", strerror(errno));
+        exit(1);
+    }
+    ret = fcntl(_fd, F_SETFD, FD_CLOEXEC);
+    if (ret == -1) {
+        fprintf(stderr, "fcntl failed on setting FD_CLOEXEC - %s\n", strerror(errno));
         exit(1);
     }
 

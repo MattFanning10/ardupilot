@@ -729,7 +729,7 @@ AP_GPS_UBLOX::_parse_gps(void)
                         _buffer.gnss.configBlock[i].flags = _buffer.gnss.configBlock[i].flags & 0xFFFFFFFE;
                     }
                 }
-                if (!memcmp(&start_gnss, &_buffer.gnss, sizeof(start_gnss))) {
+                if (memcmp(&start_gnss, &_buffer.gnss, sizeof(start_gnss))) {
                     _send_message(CLASS_CFG, MSG_CFG_GNSS, &_buffer.gnss, 4 + (8 * _buffer.gnss.numConfigBlocks));
                     _unconfigured_messages |= CONFIG_GNSS;
                     _cfg_needs_save = true;
@@ -1080,6 +1080,7 @@ AP_GPS_UBLOX::_parse_gps(void)
         state.time_week_ms = AP_HAL::millis() + 3*60*60*1000 + 37000;
         state.last_gps_time_ms = AP_HAL::millis();
         state.hdop = 130;
+        state.speed_accuracy = 0;
         next_fix = state.status;
 #endif
         break;

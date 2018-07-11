@@ -66,9 +66,6 @@ void SITL_State::_sitl_setup(const char *home_str)
 #if !defined(__CYGWIN__) && !defined(__CYGWIN64__)
     _parent_pid = getppid();
 #endif
-    _rcout_addr.sin_family = AF_INET;
-    _rcout_addr.sin_port = htons(_rcout_port);
-    inet_pton(AF_INET, _fdm_address, &_rcout_addr.sin_addr);
 
 #ifndef HIL_MODE
     _setup_fdm();
@@ -76,12 +73,12 @@ void SITL_State::_sitl_setup(const char *home_str)
     fprintf(stdout, "Starting SITL input\n");
 
     // find the barometer object if it exists
-    _sitl = (SITL::SITL *)AP_Param::find_object("SIM_");
-    _barometer = (AP_Baro *)AP_Param::find_object("GND_");
-    _ins = (AP_InertialSensor *)AP_Param::find_object("INS_");
-    _compass = (Compass *)AP_Param::find_object("COMPASS_");
+    _sitl = AP::sitl();
+    _barometer = AP_Baro::get_instance();
+    _ins = AP_InertialSensor::get_instance();
+    _compass = Compass::get_singleton();
 #if AP_TERRAIN_AVAILABLE
-    _terrain = (AP_Terrain *)AP_Param::find_object("TERRAIN_");
+    _terrain = reinterpret_cast<AP_Terrain *>(AP_Param::find_object("TERRAIN_"));
 #endif
 
     if (_sitl != nullptr) {
@@ -96,7 +93,7 @@ void SITL_State::_sitl_setup(const char *home_str)
         }
 
         if (_use_fg_view) {
-            fg_socket.connect("127.0.0.1", _fg_view_port);
+            fg_socket.connect(_fg_address, _fg_view_port);
         }
 
         fprintf(stdout, "Using Irlock at port : %d\n", _irlock_port);
@@ -118,11 +115,12 @@ void SITL_State::_setup_fdm(void)
 {
     if (!_sitl_rc_in.bind("0.0.0.0", _rcin_port)) {
         fprintf(stderr, "SITL: socket bind failed on RC in port : %d - %s\n", _rcin_port, strerror(errno));
-        fprintf(stderr, "Abording launch...\n");
+        fprintf(stderr, "Aborting launch...\n");
         exit(1);
     }
     _sitl_rc_in.reuseaddress();
     _sitl_rc_in.set_blocking(false);
+    _sitl_rc_in.set_cloexec();
 }
 #endif
 

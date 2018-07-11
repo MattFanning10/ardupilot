@@ -451,16 +451,7 @@ const AP_Param::GroupInfo Compass::var_info[] = {
 // Note that the Vector/Matrix constructors already implicitly zero
 // their values.
 //
-Compass::Compass(void) :
-    _compass_cal_autoreboot(false),
-    _cal_complete_requires_reboot(false),
-    _cal_has_run(false),
-    _backend_count(0),
-    _compass_count(0),
-    _board_orientation(ROTATION_NONE),
-    _custom_rotation(nullptr),
-    _null_init_done(false),
-    _hil_mode(false)
+Compass::Compass(void)
 {
     if (_singleton != nullptr) {
 #if CONFIG_HAL_BOARD == HAL_BOARD_SITL
@@ -470,15 +461,6 @@ Compass::Compass(void) :
     }
     _singleton = this;
     AP_Param::setup_object_defaults(this, var_info);
-    for (uint8_t i=0; i<COMPASS_MAX_BACKEND; i++) {
-        _backends[i] = nullptr;
-        _state[i].last_update_usec = 0;
-    }
-
-    // default device ids to zero.  init() method will overwrite with the actual device ids
-    for (uint8_t i=0; i<COMPASS_MAX_INSTANCES; i++) {
-        _state[i].dev_id = 0;
-    }
 }
 
 // Default init method
@@ -592,12 +574,15 @@ void Compass::_detect_backends(void)
     case AP_BoardConfig::PX4_BOARD_PIXHAWK2:
     case AP_BoardConfig::PX4_BOARD_PIXRACER: 
     case AP_BoardConfig::PX4_BOARD_MINDPXV2: 
+    case AP_BoardConfig::PX4_BOARD_FMUV5:
     case AP_BoardConfig::PX4_BOARD_PIXHAWK_PRO:{
         bool both_i2c_external = (AP_BoardConfig::get_board_type() == AP_BoardConfig::PX4_BOARD_PIXHAWK2);
         // external i2c bus
-        ADD_BACKEND(DRIVER_HMC5883, AP_Compass_HMC5843::probe(*this, hal.i2c_mgr->get_device(1, HAL_COMPASS_HMC5843_I2C_ADDR),
-                                                              true, ROTATION_ROLL_180),
-                    AP_Compass_HMC5843::name, true);
+        FOREACH_I2C_EXTERNAL(i) {
+            ADD_BACKEND(DRIVER_HMC5883, AP_Compass_HMC5843::probe(*this, hal.i2c_mgr->get_device(i, HAL_COMPASS_HMC5843_I2C_ADDR),
+                                                                  true, ROTATION_ROLL_180),
+                        AP_Compass_HMC5843::name, true);
+        }
 
         if (AP_BoardConfig::get_board_type() != AP_BoardConfig::PX4_BOARD_MINDPXV2) {
             // internal i2c bus
@@ -607,9 +592,11 @@ void Compass::_detect_backends(void)
         }
 
         //external i2c bus
-        ADD_BACKEND(DRIVER_QMC5883, AP_Compass_QMC5883L::probe(*this, hal.i2c_mgr->get_device(1, HAL_COMPASS_QMC5883L_I2C_ADDR),
-                								true,ROTATION_ROLL_180),
-        			AP_Compass_QMC5883L::name, true);
+        FOREACH_I2C_EXTERNAL(i) {
+            ADD_BACKEND(DRIVER_QMC5883, AP_Compass_QMC5883L::probe(*this, hal.i2c_mgr->get_device(i, HAL_COMPASS_QMC5883L_I2C_ADDR),
+                                                                   true,ROTATION_ROLL_180),
+                        AP_Compass_QMC5883L::name, true);
+        }
         //internal i2c bus
         ADD_BACKEND(DRIVER_QMC5883, AP_Compass_QMC5883L::probe(*this, hal.i2c_mgr->get_device(0, HAL_COMPASS_QMC5883L_I2C_ADDR),
                 								both_i2c_external, both_i2c_external?ROTATION_ROLL_180:ROTATION_ROLL_180_YAW_270),
@@ -617,11 +604,13 @@ void Compass::_detect_backends(void)
         
 #if !HAL_MINIMIZE_FEATURES
         // AK09916 on ICM20948
-        ADD_BACKEND(DRIVER_ICM20948, AP_Compass_AK09916::probe_ICM20948(*this,
-                                                                        hal.i2c_mgr->get_device(1, HAL_COMPASS_AK09916_I2C_ADDR),
-                                                                        hal.i2c_mgr->get_device(1, HAL_COMPASS_ICM20948_I2C_ADDR),
-                                                                        true, ROTATION_PITCH_180_YAW_90),
-                     AP_Compass_AK09916::name, true);
+        FOREACH_I2C_EXTERNAL(i) {
+            ADD_BACKEND(DRIVER_ICM20948, AP_Compass_AK09916::probe_ICM20948(*this,
+                                                                            hal.i2c_mgr->get_device(i, HAL_COMPASS_AK09916_I2C_ADDR),
+                                                                            hal.i2c_mgr->get_device(i, HAL_COMPASS_ICM20948_I2C_ADDR),
+                                                                            true, ROTATION_PITCH_180_YAW_90),
+                        AP_Compass_AK09916::name, true);
+        }
 
         ADD_BACKEND(DRIVER_ICM20948, AP_Compass_AK09916::probe_ICM20948(*this,
                                                                         hal.i2c_mgr->get_device(0, HAL_COMPASS_AK09916_I2C_ADDR),
@@ -640,20 +629,26 @@ void Compass::_detect_backends(void)
                     AP_Compass_LIS3MDL::name, both_i2c_external);
 
         // external lis3mdl on bus 1 with default address
-        ADD_BACKEND(DRIVER_LIS3MDL, AP_Compass_LIS3MDL::probe(*this, hal.i2c_mgr->get_device(1, HAL_COMPASS_LIS3MDL_I2C_ADDR),
-                                                              true, ROTATION_YAW_90),
-                    AP_Compass_LIS3MDL::name, true);
+        FOREACH_I2C_EXTERNAL(i) {
+            ADD_BACKEND(DRIVER_LIS3MDL, AP_Compass_LIS3MDL::probe(*this, hal.i2c_mgr->get_device(i, HAL_COMPASS_LIS3MDL_I2C_ADDR),
+                                                                  true, ROTATION_YAW_90),
+                        AP_Compass_LIS3MDL::name, true);
+        }
 
         // external lis3mdl on bus 1 with alternate address
-        ADD_BACKEND(DRIVER_LIS3MDL, AP_Compass_LIS3MDL::probe(*this, hal.i2c_mgr->get_device(1, HAL_COMPASS_LIS3MDL_I2C_ADDR2),
-                                                              true, ROTATION_YAW_90),
-                    AP_Compass_LIS3MDL::name, true);
+        FOREACH_I2C_EXTERNAL(i) {
+            ADD_BACKEND(DRIVER_LIS3MDL, AP_Compass_LIS3MDL::probe(*this, hal.i2c_mgr->get_device(i, HAL_COMPASS_LIS3MDL_I2C_ADDR2),
+                                                                  true, ROTATION_YAW_90),
+                        AP_Compass_LIS3MDL::name, true);
+        }
         
         // AK09916. This can be found twice, due to the ICM20948 i2c bus pass-thru, so we need to be careful to avoid that
-        if (!_have_driver(AP_HAL::Device::BUS_TYPE_I2C, 1, HAL_COMPASS_AK09916_I2C_ADDR, AP_Compass_Backend::DEVTYPE_ICM20948)) {
-            ADD_BACKEND(DRIVER_AK09916, AP_Compass_AK09916::probe(*this, hal.i2c_mgr->get_device(1, HAL_COMPASS_AK09916_I2C_ADDR),
-                                                                  true, ROTATION_YAW_270),
-                    AP_Compass_AK09916::name, true);
+        FOREACH_I2C_EXTERNAL(i) {
+            if (!_have_driver(AP_HAL::Device::BUS_TYPE_I2C, i, HAL_COMPASS_AK09916_I2C_ADDR, AP_Compass_Backend::DEVTYPE_ICM20948)) {
+                ADD_BACKEND(DRIVER_AK09916, AP_Compass_AK09916::probe(*this, hal.i2c_mgr->get_device(i, HAL_COMPASS_AK09916_I2C_ADDR),
+                                                                      true, ROTATION_YAW_270),
+                            AP_Compass_AK09916::name, true);
+            }
         }
         if (!_have_driver(AP_HAL::Device::BUS_TYPE_I2C, 0, HAL_COMPASS_AK09916_I2C_ADDR, AP_Compass_Backend::DEVTYPE_ICM20948)) {
             ADD_BACKEND(DRIVER_AK09916, AP_Compass_AK09916::probe(*this, hal.i2c_mgr->get_device(0, HAL_COMPASS_AK09916_I2C_ADDR),
@@ -662,11 +657,15 @@ void Compass::_detect_backends(void)
         }
 
         // IST8310 on external and internal bus
-        ADD_BACKEND(DRIVER_IST8310, AP_Compass_IST8310::probe(*this, hal.i2c_mgr->get_device(1, HAL_COMPASS_IST8310_I2C_ADDR),
-                                                              true, ROTATION_PITCH_180), AP_Compass_IST8310::name, true);
+        if (AP_BoardConfig::get_board_type() != AP_BoardConfig::PX4_BOARD_FMUV5) {
+            FOREACH_I2C_EXTERNAL(i) {
+                ADD_BACKEND(DRIVER_IST8310, AP_Compass_IST8310::probe(*this, hal.i2c_mgr->get_device(i, HAL_COMPASS_IST8310_I2C_ADDR),
+                                                                      true, ROTATION_PITCH_180), AP_Compass_IST8310::name, true);
+            }
 
-        ADD_BACKEND(DRIVER_IST8310, AP_Compass_IST8310::probe(*this, hal.i2c_mgr->get_device(0, HAL_COMPASS_IST8310_I2C_ADDR),
-                                                              both_i2c_external, ROTATION_PITCH_180), AP_Compass_IST8310::name, both_i2c_external);
+            ADD_BACKEND(DRIVER_IST8310, AP_Compass_IST8310::probe(*this, hal.i2c_mgr->get_device(0, HAL_COMPASS_IST8310_I2C_ADDR),
+                                                                  both_i2c_external, ROTATION_PITCH_180), AP_Compass_IST8310::name, both_i2c_external);
+        }
 #endif // HAL_MINIMIZE_FEATURES
         }
         break;
@@ -730,6 +729,17 @@ void Compass::_detect_backends(void)
                     AP_Compass_AK8963::name, false);
         break;
 
+    case AP_BoardConfig::PX4_BOARD_FMUV5:
+        FOREACH_I2C_EXTERNAL(i) {
+            ADD_BACKEND(DRIVER_IST8310, AP_Compass_IST8310::probe(*this, hal.i2c_mgr->get_device(i, HAL_COMPASS_IST8310_I2C_ADDR),
+                                                                  true, ROTATION_ROLL_180_YAW_90), AP_Compass_IST8310::name, true);
+        }
+        FOREACH_I2C_INTERNAL(i) {
+            ADD_BACKEND(DRIVER_IST8310, AP_Compass_IST8310::probe(*this, hal.i2c_mgr->get_device(i, HAL_COMPASS_IST8310_I2C_ADDR),
+                                                                  false, ROTATION_ROLL_180_YAW_90), AP_Compass_IST8310::name, false);
+        }
+        break;
+        
     case AP_BoardConfig::PX4_BOARD_SP01:
         ADD_BACKEND(DRIVER_AK8963, AP_Compass_AK8963::probe_mpu9250(*this, 1, ROTATION_NONE),
                     AP_Compass_AK8963::name, false);
@@ -793,18 +803,6 @@ void Compass::_detect_backends(void)
                 AP_Compass_AK8963::name, false);
     ADD_BACKEND(DRIVER_AK8963, AP_Compass_AK8963::probe_mpu9250(*this, 1),
                 AP_Compass_AK8963::name, true);
-#elif CONFIG_HAL_BOARD_SUBTYPE == HAL_BOARD_SUBTYPE_LINUX_MINLURE
-    ADD_BACKEND(DRIVER_HMC5883, AP_Compass_HMC5843::probe_mpu6000(*this),
-                AP_Compass_HMC5843::name, false);
-    ADD_BACKEND(DRIVER_HMC5883, AP_Compass_HMC5843::probe(*this,
-                     Linux::I2CDeviceManager::from(hal.i2c_mgr)->get_device(
-                         { /* UEFI with lpss set to ACPI */
-                           "platform/80860F41:05",
-                           /* UEFI with lpss set to PCI */
-                           "pci0000:00/0000:00:18.6" },
-                         HAL_COMPASS_HMC5843_I2C_ADDR),
-                     true),
-                 AP_Compass_HMC5843::name, true);
 #elif HAL_COMPASS_DEFAULT == HAL_COMPASS_NAVIO2
     ADD_BACKEND(DRIVER_LSM9DS1, AP_Compass_LSM9DS1::probe(*this, hal.spi->get_device("lsm9ds1_m"), ROTATION_ROLL_180),
                 AP_Compass_LSM9DS1::name, false);
@@ -1271,61 +1269,50 @@ void Compass::motor_compensation_type(const uint8_t comp_type)
 
 bool Compass::consistent() const
 {
-    Vector3f primary_mag_field = get_field();
-    Vector3f primary_mag_field_norm;
+    const Vector3f &primary_mag_field = get_field();
+    const Vector2f primary_mag_field_xy = Vector2f(primary_mag_field.x,primary_mag_field.y);
 
-    if (!primary_mag_field.is_zero()) {
-        primary_mag_field_norm = primary_mag_field.normalized();
-    } else {
+    if (primary_mag_field_xy.is_zero()) {
         return false;
     }
 
-    Vector2f primary_mag_field_xy = Vector2f(primary_mag_field.x,primary_mag_field.y);
-    Vector2f primary_mag_field_xy_norm;
-
-    if (!primary_mag_field_xy.is_zero()) {
-        primary_mag_field_xy_norm = primary_mag_field_xy.normalized();
-    } else {
-        return false;
-    }
+    const Vector3f primary_mag_field_norm = primary_mag_field.normalized();
+    const Vector2f primary_mag_field_xy_norm = primary_mag_field_xy.normalized();
 
     for (uint8_t i=0; i<get_count(); i++) {
-        if (use_for_yaw(i)) {
-            Vector3f mag_field = get_field(i);
-            Vector3f mag_field_norm;
+        if (!use_for_yaw(i)) {
+            // configured not-to-be-used
+            continue;
+        }
 
-            if (!mag_field.is_zero()) {
-                mag_field_norm = mag_field.normalized();
-            } else {
-                return false;
-            }
+        Vector3f mag_field = get_field(i);
+        Vector2f mag_field_xy = Vector2f(mag_field.x,mag_field.y);
 
-            Vector2f mag_field_xy = Vector2f(mag_field.x,mag_field.y);
-            Vector2f mag_field_xy_norm;
+        if (mag_field_xy.is_zero()) {
+            return false;
+        }
 
-            if (!mag_field_xy.is_zero()) {
-                mag_field_xy_norm = mag_field_xy.normalized();
-            } else {
-                return false;
-            }
+        const float xy_len_diff  = (primary_mag_field_xy-mag_field_xy).length();
 
-            float xyz_ang_diff = acosf(constrain_float(mag_field_norm * primary_mag_field_norm,-1.0f,1.0f));
-            float xy_ang_diff  = acosf(constrain_float(mag_field_xy_norm*primary_mag_field_xy_norm,-1.0f,1.0f));
-            float xy_len_diff  = (primary_mag_field_xy-mag_field_xy).length();
+        mag_field.normalize();
+        mag_field_xy.normalize();
 
-            // check for gross misalignment on all axes
-            bool xyz_ang_diff_large = xyz_ang_diff > AP_COMPASS_MAX_XYZ_ANG_DIFF;
+        const float xyz_ang_diff = acosf(constrain_float(mag_field*primary_mag_field_norm,-1.0f,1.0f));
+        const float xy_ang_diff  = acosf(constrain_float(mag_field_xy*primary_mag_field_xy_norm,-1.0f,1.0f));
 
-            // check for an unacceptable angle difference on the xy plane
-            bool xy_ang_diff_large = xy_ang_diff > AP_COMPASS_MAX_XY_ANG_DIFF;
+        // check for gross misalignment on all axes
+        if (xyz_ang_diff > AP_COMPASS_MAX_XYZ_ANG_DIFF) {
+            return false;
+        }
 
-            // check for an unacceptable length difference on the xy plane
-            bool xy_length_diff_large = xy_len_diff > AP_COMPASS_MAX_XY_LENGTH_DIFF;
+        // check for an unacceptable angle difference on the xy plane
+        if (xy_ang_diff > AP_COMPASS_MAX_XY_ANG_DIFF) {
+            return false;
+        }
 
-            // check for inconsistency in the XY plane
-            if (xyz_ang_diff_large || xy_ang_diff_large || xy_length_diff_large) {
-                return false;
-            }
+        // check for an unacceptable length difference on the xy plane
+        if (xy_len_diff > AP_COMPASS_MAX_XY_LENGTH_DIFF) {
+            return false;
         }
     }
     return true;

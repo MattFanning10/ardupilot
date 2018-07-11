@@ -81,6 +81,7 @@ enum ap_message : uint8_t {
     MSG_BATTERY_STATUS,
     MSG_AOA_SSA,
     MSG_LANDING,
+    MSG_ESC_TELEMETRY,
     MSG_NAMED_FLOAT,
     MSG_LAST // MSG_LAST must be the last entry in this enum
 };
@@ -108,6 +109,7 @@ public:
     void        setup_uart(const AP_SerialManager& serial_manager, AP_SerialManager::SerialProtocol protocol, uint8_t instance);
     void        send_message(enum ap_message id);
     void        send_text(MAV_SEVERITY severity, const char *fmt, ...);
+    void        send_textv(MAV_SEVERITY severity, const char *fmt, va_list arg_list);
     void        data_stream_send();
     void        queued_param_send();
     void        queued_waypoint_send();
@@ -257,7 +259,6 @@ protected:
     virtual AP_AdvancedFailsafe *get_advanced_failsafe() const { return nullptr; };
     virtual AP_VisualOdom *get_visual_odom() const { return nullptr; }
     virtual bool set_mode(uint8_t mode) = 0;
-    virtual const AP_FWVersion &get_fwver() const = 0;
     void set_ekf_origin(const Location& loc);
 
     virtual MAV_TYPE frame_type() const = 0;
@@ -296,12 +297,10 @@ protected:
     void handle_param_request_list(mavlink_message_t *msg);
     void handle_param_request_read(mavlink_message_t *msg);
     virtual bool params_ready() const { return true; }
-
-    void handle_common_gps_message(mavlink_message_t *msg);
+    void handle_system_time_message(const mavlink_message_t *msg);
     void handle_common_rally_message(mavlink_message_t *msg);
     void handle_rally_fetch_point(mavlink_message_t *msg);
     void handle_rally_point(mavlink_message_t *msg);
-    void handle_common_camera_message(const mavlink_message_t *msg);
     void handle_gimbal_report(AP_Mount &mount, mavlink_message_t *msg) const;
     void handle_radio_status(mavlink_message_t *msg, DataFlash_Class &dataflash, bool log_radio);
     void handle_serial_control(const mavlink_message_t *msg);
@@ -340,6 +339,7 @@ protected:
     virtual uint32_t telem_delay() const = 0;
 
     MAV_RESULT handle_command_preflight_set_sensor_offsets(const mavlink_command_long_t &packet);
+    MAV_RESULT handle_command_flash_bootloader(const mavlink_command_long_t &packet);
 
     // generally this should not be overridden; Plane overrides it to ensure
     // failsafe isn't triggered during calibation
@@ -352,6 +352,7 @@ protected:
     MAV_RESULT handle_command_long_message(mavlink_command_long_t &packet);
     MAV_RESULT handle_command_camera(const mavlink_command_long_t &packet);
     MAV_RESULT handle_command_do_send_banner(const mavlink_command_long_t &packet);
+    MAV_RESULT handle_command_do_gripper(mavlink_command_long_t &packet);
     MAV_RESULT handle_command_do_set_mode(const mavlink_command_long_t &packet);
     MAV_RESULT handle_command_get_home_position(const mavlink_command_long_t &packet);
 
@@ -361,8 +362,6 @@ protected:
     // message sending functions:
     bool try_send_compass_message(enum ap_message id);
     bool try_send_mission_message(enum ap_message id);
-    bool try_send_camera_message(enum ap_message id);
-    bool try_send_gps_message(enum ap_message id);
     void send_hwstatus();
     void handle_data_packet(mavlink_message_t *msg);
 
@@ -371,11 +370,13 @@ protected:
     virtual int32_t global_position_int_relative_alt() const;
 
     // these methods are called after vfr_hud_velned is updated
-    virtual bool vfr_hud_make_alt_relative() const { return false; }
     virtual float vfr_hud_climbrate() const;
     virtual float vfr_hud_airspeed() const;
     virtual int16_t vfr_hud_throttle() const { return 0; }
     Vector3f vfr_hud_velned;
+
+    static constexpr const float magic_force_arm_value = 2989.0f;
+    static constexpr const float magic_force_disarm_value = 21196.0f;
 
 private:
 
@@ -581,6 +582,7 @@ public:
     }
 
     void send_text(MAV_SEVERITY severity, const char *fmt, ...);
+    void send_textv(MAV_SEVERITY severity, const char *fmt, va_list arg_list);
     virtual void send_statustext(MAV_SEVERITY severity, uint8_t dest_bitmask, const char *text);
     void service_statustext(void);
     virtual GCS_MAVLINK &chan(const uint8_t ofs) = 0;
@@ -633,6 +635,9 @@ public:
     
     // install an alternative protocol handler
     bool install_alternative_protocol(mavlink_channel_t chan, GCS_MAVLINK::protocol_handler_fn_t handler);
+
+    // get the VFR_HUD throttle
+    int16_t get_hud_throttle(void) const { return num_gcs()>0?chan(0).vfr_hud_throttle():0; }
     
 private:
 

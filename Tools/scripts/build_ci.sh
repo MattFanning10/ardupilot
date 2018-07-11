@@ -17,6 +17,7 @@ rm -rf $BUILDROOT
 export GIT_VERSION="ci_test"
 export NUTTX_GIT_VERSION="ci_test"
 export PX4_GIT_VERSION="ci_test"
+export CHIBIOS_GIT_VERSION="ci_test"
 export CCACHE_SLOPPINESS="include_file_ctime,include_file_mtime"
 
 # If CI_BUILD_TARGET is not set, build 3 different ones
@@ -91,6 +92,23 @@ for t in $CI_BUILD_TARGET; do
         continue
     fi
 
+    if [ $t == "revo-bootloader" ]; then
+        echo "Building revo bootloader"
+        $waf configure --board revo-mini --bootloader
+        $waf clean
+        $waf bootloader
+        continue
+    fi
+
+    if [ $t == "revo-mini" ]; then
+        # save some time by only building one target for revo-mini
+        echo "Building revo-mini"
+        $waf configure --board revo-mini
+        $waf clean
+        $waf plane
+        continue
+    fi
+    
     # only do make-based builds for GCC, when target is PX4-v3 or build is launched by a scheduled job and target is a PX4 board or SITL
     if [[ "$cxx_compiler" != "clang++" && ($t == "px4-v3" || (-n ${CI_CRON_JOB+1} && ($t == "px4"* || $t == "sitl"))) ]]; then
         echo "Starting make based build for target ${t}..."
@@ -127,6 +145,12 @@ for t in $CI_BUILD_TARGET; do
         fi
     fi
 done
+
+python Tools/autotest/param_metadata/param_parse.py --no-emit --vehicle APMrover2
+python Tools/autotest/param_metadata/param_parse.py --no-emit --vehicle AntennaTracker
+python Tools/autotest/param_metadata/param_parse.py --no-emit --vehicle ArduCopter
+python Tools/autotest/param_metadata/param_parse.py --no-emit --vehicle ArduPlane
+python Tools/autotest/param_metadata/param_parse.py --no-emit --vehicle ArduSub
 
 echo build OK
 exit 0

@@ -152,6 +152,10 @@
  #include <AP_Devo_Telem/AP_Devo_Telem.h>
 #endif
 
+#if OSD_ENABLED == ENABLED
+ #include <AP_OSD/AP_OSD.h>
+#endif
+
 #if ADVANCED_FAILSAFE == ENABLED
  # include "afs_copter.h"
 #endif
@@ -316,14 +320,14 @@ private:
             uint8_t logging_started         : 1; // 6       // true if dataflash logging has started
             uint8_t land_complete           : 1; // 7       // true if we have detected a landing
             uint8_t new_radio_frame         : 1; // 8       // Set true if we have new PWM data to act on from the Radio
-            uint8_t usb_connected           : 1; // 9       // true if APM is powered from USB connection
+            uint8_t usb_connected_unused    : 1; // 9       // UNUSED
             uint8_t rc_receiver_present     : 1; // 10      // true if we have an rc receiver present (i.e. if we've ever received an update
             uint8_t compass_mot             : 1; // 11      // true if we are currently performing compassmot calibration
             uint8_t motor_test              : 1; // 12      // true if we are currently performing the motors test
             uint8_t initialised             : 1; // 13      // true once the init_ardupilot function has completed.  Extended status to GCS is not sent until this completes
             uint8_t land_complete_maybe     : 1; // 14      // true if we may have landed (less strict version of land_complete)
             uint8_t throttle_zero           : 1; // 15      // true if the throttle stick is at zero, debounced, determines if pilot intends shut-down when not using motor interlock
-            uint8_t system_time_set         : 1; // 16      // true if the system time has been set from the GPS
+            uint8_t system_time_set_unused  : 1; // 16      // true if the system time has been set from the GPS
             uint8_t gps_glitching           : 1; // 17      // true if GPS glitching is affecting navigation accuracy
             uint8_t using_interlock         : 1; // 20      // aux switch motor interlock function is in use
             uint8_t motor_emergency_stop    : 1; // 21      // motor estop switch, shuts off motors when enabled
@@ -339,6 +343,8 @@ private:
     } ap_t;
 
     ap_t ap;
+
+    static_assert(sizeof(uint32_t) == sizeof(ap), "ap_t must be uint32_t");
 
     // This is the state of the flight control system
     // There are multiple states defined such as STABILIZE, ACRO,
@@ -360,15 +366,6 @@ private:
         uint8_t count;
         uint8_t ch_flag;
     } aux_debounce[(CH_12 - CH_7)+1];
-
-    typedef struct {
-        bool running;
-        float max_speed;
-        float alt_delta;
-        uint32_t start_ms;
-    } takeoff_state_t;
-    takeoff_state_t takeoff_state;
-
     // altitude below which we do no navigation in auto takeoff
     float auto_takeoff_no_nav_alt_cm;
 
@@ -376,7 +373,7 @@ private:
 
     // intertial nav alt when we armed
     float arming_altitude_m;
-    
+
     // board specific config
     AP_BoardConfig BoardConfig;
 
@@ -454,6 +451,10 @@ private:
     AP_DEVO_Telem devo_telemetry{ahrs};
 #endif
 
+#if OSD_ENABLED == ENABLED
+    AP_OSD osd;
+#endif
+    
     // Variables for extended status MAVLink messages
     uint32_t control_sensors_present;
     uint32_t control_sensors_enabled;
@@ -463,6 +464,7 @@ private:
     // The cm/s we are moving up or down based on filtered data - Positive = UP
     int16_t climb_rate;
     float target_rangefinder_alt;   // desired altitude in cm above the ground
+    bool target_rangefinder_alt_used; // true if mode is using target_rangefinder_alt
     int32_t baro_alt;            // barometer altitude in cm above home
     float baro_climbrate;        // barometer climbrate in cm/s
     LowPassFilterVector3f land_accel_ef_filter; // accelerations for land and crash detector tests
@@ -621,7 +623,7 @@ private:
 
     // set when we are upgrading parameters from 3.4
     bool upgrading_frame_params;
-    
+
     static const AP_Scheduler::Task scheduler_tasks[];
     static const AP_Param::Info var_info[];
     static const struct LogStructure log_structure[];
@@ -708,13 +710,9 @@ private:
     bool set_home_to_current_location(bool lock);
     bool set_home(const Location& loc, bool lock);
     bool far_from_EKF_origin(const Location& loc);
-    void set_system_time_from_GPS();
 
     // compassmot.cpp
     MAV_RESULT mavlink_compassmot(mavlink_channel_t chan);
-
-    // compat.cpp
-    void delay(uint32_t ms);
 
     // crash_check.cpp
     void crash_check();
@@ -835,7 +833,7 @@ private:
     // motors.cpp
     void arm_motors_check();
     void auto_disarm_check();
-    bool init_arm_motors(bool arming_from_gcs);
+    bool init_arm_motors(bool arming_from_gcs, bool do_arming_checks=true);
     void init_disarm_motors();
     void motors_output();
     void lost_vehicle_check();
@@ -918,19 +916,12 @@ private:
     bool ekf_position_ok();
     bool optflow_position_ok();
     void update_auto_armed();
-    void check_usb_mux(void);
     bool should_log(uint32_t mask);
     void set_default_frame_class();
     MAV_TYPE get_frame_mav_type();
     const char* get_frame_string();
     void allocate_motors(void);
 
-    // takeoff.cpp
-    bool current_mode_has_user_takeoff(bool must_navigate);
-    bool do_user_takeoff(float takeoff_alt_cm, bool must_navigate);
-    void takeoff_timer_start(float alt_cm);
-    void takeoff_stop();
-    void takeoff_get_climb_rates(float& pilot_climb_rate, float& takeoff_climb_rate);
     void auto_takeoff_set_start_alt(void);
     void auto_takeoff_attitude_run(float target_yaw_rate);
 

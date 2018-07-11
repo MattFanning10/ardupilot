@@ -14,6 +14,7 @@
 #include <systemlib/board_serial.h>
 #include <drivers/drv_gpio.h>
 #include <AP_Math/AP_Math.h>
+#include <AP_BoardConfig/AP_BoardConfig.h>
 
 extern const AP_HAL::HAL& hal;
 
@@ -94,14 +95,6 @@ enum PX4Util::safety_state PX4Util::safety_switch_state(void)
         return AP_HAL::Util::SAFETY_ARMED;
     }
     return AP_HAL::Util::SAFETY_DISARMED;
-}
-
-void PX4Util::set_system_clock(uint64_t time_utc_usec)
-{
-    timespec ts;
-    ts.tv_sec = time_utc_usec/1000000ULL;
-    ts.tv_nsec = (time_utc_usec % 1000000ULL) * 1000ULL;
-    clock_settime(CLOCK_REALTIME, &ts);    
 }
 
 /*
@@ -268,5 +261,21 @@ void PX4Util::free_type(void *ptr, size_t size, AP_HAL::Util::Memory_Type mem_ty
     return free(ptr);
 #endif
 }
+
+extern "C" {
+    int bl_update_main(int argc, char *argv[]);
+};
+
+bool PX4Util::flash_bootloader()
+{
+#if !defined(CONFIG_ARCH_BOARD_AEROFC_V1)
+    if (AP_BoardConfig::px4_start_driver(bl_update_main, "bl_update", "/etc/bootloader/fmu_bl.bin")) {
+        hal.console->printf("updated bootloader\n");
+        return true;
+    }
+#endif
+    return false;
+}
+
 
 #endif // CONFIG_HAL_BOARD == HAL_BOARD_PX4

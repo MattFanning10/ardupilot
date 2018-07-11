@@ -28,7 +28,7 @@ void Copter::init_ardupilot()
 
     hal.console->printf("\n\nInit %s"
                         "\n\nFree RAM: %u\n",
-                        fwver.fw_string,
+                        AP::fwversion().fw_string,
                         (unsigned)hal.util->available_memory());
 
     //
@@ -89,26 +89,24 @@ void Copter::init_ardupilot()
     
     barometer.init();
 
-    // we start by assuming USB connected, as we initialed the serial
-    // port with SERIAL0_BAUD. check_usb_mux() fixes this if need be.
-    ap.usb_connected = true;
-    check_usb_mux();
-
     // setup telem slots with serial ports
     gcs().setup_uarts(serial_manager);
 
 #if FRSKY_TELEM_ENABLED == ENABLED
     // setup frsky, and pass a number of parameters to the library
-    char firmware_buf[50];
-    snprintf(firmware_buf, sizeof(firmware_buf), "%s %s", fwver.fw_string, get_frame_string());
-    frsky_telemetry.init(serial_manager, firmware_buf,
+    frsky_telemetry.init(serial_manager,
                          get_frame_mav_type(),
                          &ap.value);
+    frsky_telemetry.set_frame_string(get_frame_string());
 #endif
 
 #if DEVO_TELEM_ENABLED == ENABLED
     // setup devo
     devo_telemetry.init(serial_manager);
+#endif
+
+#if OSD_ENABLED == ENABLED
+    osd.init();
 #endif
 
 #if LOGGING_ENABLED == ENABLED
@@ -418,17 +416,6 @@ void Copter::update_auto_armed()
     }
 }
 
-void Copter::check_usb_mux(void)
-{
-    bool usb_check = hal.gpio->usb_connected();
-    if (usb_check == ap.usb_connected) {
-        return;
-    }
-
-    // the user has switched to/from the telemetry port
-    ap.usb_connected = usb_check;
-}
-
 /*
   should we log a message type now?
  */
@@ -624,7 +611,7 @@ void Copter::allocate_motors(void)
 #endif
 
     // reload lines from the defaults file that may now be accessible
-    AP_Param::reload_defaults_file();
+    AP_Param::reload_defaults_file(true);
     
     // now setup some frame-class specific defaults
     switch ((AP_Motors::motor_frame_class)g2.frame_class.get()) {

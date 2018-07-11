@@ -317,6 +317,10 @@ def do_build_waf(opts, frame_options):
     cmd_configure = [waf_light, "configure", "--board", "sitl"]
     if opts.debug:
         cmd_configure.append("--debug")
+
+    if opts.OSD:
+        cmd_configure.append("--enable-sfml")
+
     pieces = [shlex.split(x) for x in opts.waf_configure_args]
     for piece in pieces:
         cmd_configure.extend(piece)
@@ -569,6 +573,10 @@ def start_vehicle(binary, autotest, opts, stuff, loc):
         if not isinstance(paths, list):
             paths = [paths]
         paths = [os.path.join(autotest, x) for x in paths]
+        for x in paths:
+            if not os.path.isfile(x):
+                print("The parameter file (%s) does not exist" % (x,))
+                sys.exit(1)
         path = ",".join(paths)
         progress("Using defaults from (%s)" % (path,))
     if opts.add_param_file:
@@ -862,6 +870,11 @@ group_sim.add_option("", "--fresh-params",
                      dest='fresh_params',
                      default=False,
                      help="Generate and use local parameter help XML")
+group_sim.add_option("", "--osd",
+                     action='store_true',
+                     dest='OSD',
+                     default=False,
+                     help="Enable SITL OSD")
 group_sim.add_option("", "--add-param-file",
                      type='string',
                      default=None,

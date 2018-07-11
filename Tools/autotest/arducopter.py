@@ -5,6 +5,8 @@ from __future__ import print_function
 import math
 import os
 import shutil
+import sys
+import time
 
 import pexpect
 from pymavlink import mavutil
@@ -84,17 +86,18 @@ class AutoTestCopter(AutoTest):
                                          AVCHOME.alt,
                                          AVCHOME.heading)
 
-        self.apply_parameters_using_sitl()
-
         self.sitl = util.start_SITL(self.binary,
                                     model=self.frame,
                                     home=self.home,
                                     speedup=self.speedup,
                                     valgrind=self.valgrind,
                                     gdb=self.gdb,
-                                    gdbserver=self.gdbserver)
+                                    gdbserver=self.gdbserver,
+                                    vicon=True,
+                                    wipe=True)
         self.mavproxy = util.start_MAVProxy_SITL(
             'ArduCopter', options=self.mavproxy_options())
+
         self.mavproxy.expect('Telemetry log: (\S+)\r\n')
         self.logfile = self.mavproxy.match.group(1)
         self.progress("LOGFILE %s" % self.logfile)
@@ -112,7 +115,10 @@ class AutoTestCopter(AutoTest):
                           (self.logfile, self.buildlog))
             self.copy_tlog = True
 
+        self.progress("WAITING FOR PARAMETERS")
         self.mavproxy.expect('Received [0-9]+ parameters')
+
+        self.apply_defaultfile_parameters()
 
         util.expect_setup_callback(self.mavproxy, self.expect_callback)
 
@@ -152,9 +158,12 @@ class AutoTestCopter(AutoTest):
             self.set_rc(3, 1000)
             self.arm_vehicle()
         self.set_rc(3, takeoff_throttle)
-        m = self.mav.recv_match(type='VFR_HUD', blocking=True)
-        if m.alt < alt_min:
-            self.wait_altitude(alt_min, (alt_min + 5))
+        m = self.mav.recv_match(type='GLOBAL_POSITION_INT', blocking=True)
+        alt = m.relative_alt / 1000.0 # mm -> m
+        if alt < alt_min:
+            self.wait_altitude(alt_min,
+                               (alt_min + 5),
+                               relative=True)
         self.hover()
         self.progress("TAKEOFF COMPLETE")
 
@@ -164,7 +173,7 @@ class AutoTestCopter(AutoTest):
         self.mavproxy.send('switch 2\n')  # land mode
         self.wait_mode('LAND')
         self.progress("Entered Landing Mode")
-        self.wait_altitude(-5, 1)
+        self.wait_altitude(-5, 1, relative=True)
         self.progress("LANDING: ok!")
 
     def hover(self, hover_throttle=1500):
@@ -214,15 +223,16 @@ class AutoTestCopter(AutoTest):
 
     def change_alt(self, alt_min, climb_throttle=1920, descend_throttle=1080):
         """Change altitude."""
-        m = self.mav.recv_match(type='VFR_HUD', blocking=True)
-        if m.alt < alt_min:
-            self.progress("Rise to alt:%u from %u" % (alt_min, m.alt))
+        m = self.mav.recv_match(type='GLOBAL_POSITION_INT', blocking=True)
+        alt = m.relative_alt / 1000.0 # mm -> m
+        if alt < alt_min:
+            self.progress("Rise to alt:%u from %u" % (alt_min, alt))
             self.set_rc(3, climb_throttle)
-            self.wait_altitude(alt_min, (alt_min + 5))
+            self.wait_altitude(alt_min, (alt_min + 5), relative=True)
         else:
-            self.progress("Lower to alt:%u from %u" % (alt_min, m.alt))
+            self.progress("Lower to alt:%u from %u" % (alt_min, alt))
             self.set_rc(3, descend_throttle)
-            self.wait_altitude((alt_min - 5), alt_min)
+            self.wait_altitude((alt_min - 5), alt_min, relative=True)
         self.hover()
 
     #################################################
@@ -310,7 +320,7 @@ class AutoTestCopter(AutoTest):
         self.progress("timeleft = %u" % time_left)
         if time_left < 20:
             time_left = 20
-        self.wait_altitude(-10, 10, time_left)
+        self.wait_altitude(-10, 10, time_left, relative=True)
         self.save_wp()
 
     # enter RTL mode and wait for the vehicle to disarm
@@ -321,14 +331,15 @@ class AutoTestCopter(AutoTest):
         self.set_rc(3, 1500)
         tstart = self.get_sim_time()
         while self.get_sim_time() < tstart + timeout:
-            m = self.mav.recv_match(type='VFR_HUD', blocking=True)
-            pos = self.mav.location()
+            m = self.mav.recv_match(type='GLOBAL_POSITION_INT', blocking=True)
+            alt = m.relative_alt / 1000.0 # mm -> m
+            pos = self.mav.location() # requires a GPS fix to function
             home_distance = self.get_distance(HOME, pos)
             home = ""
-            if m.alt <= 1 and home_distance < 10:
+            if alt <= 1 and home_distance < 10:
                 home = "HOME"
             self.progress("Alt: %u  HomeDist: %.0f %s" %
-                          (m.alt, home_distance, home))
+                          (alt, home_distance, home))
             # our post-condition is that we are disarmed:
             if not self.armed():
                 return
@@ -367,12 +378,13 @@ class AutoTestCopter(AutoTest):
 
         tstart = self.get_sim_time()
         while self.get_sim_time() < tstart + timeout:
-            m = self.mav.recv_match(type='VFR_HUD', blocking=True)
+            m = self.mav.recv_match(type='GLOBAL_POSITION_INT', blocking=True)
+            alt = m.alt / 1000.0 # mm -> m
             pos = self.mav.location()
             home_distance = self.get_distance(HOME, pos)
-            self.progress("Alt: %u  HomeDist: %.0f" % (m.alt, home_distance))
+            self.progress("Alt: %u  HomeDist: %.0f" % (alt, home_distance))
             # check if we've reached home
-            if m.alt <= 1 and home_distance < 10:
+            if alt <= 1 and home_distance < 10:
                 # reduce throttle
                 self.set_rc(3, 1100)
                 # switch back to stabilize
@@ -496,18 +508,19 @@ class AutoTestCopter(AutoTest):
         # start timer
         tstart = self.get_sim_time()
         while self.get_sim_time() < tstart + timeout:
-            m = self.mav.recv_match(type='VFR_HUD', blocking=True)
+            m = self.mav.recv_match(type='GLOBAL_POSITION_INT', blocking=True)
+            alt = m.relative_alt / 1000.0 # mm -> m
             pos = self.mav.location()
             home_distance = self.get_distance(HOME, pos)
             self.progress("Alt: %u  HomeDistance: %.0f" %
-                          (m.alt, home_distance))
+                          (alt, home_distance))
             # recenter pitch sticks once we're home so we don't fly off again
             if pitching_forward and home_distance < 10:
                 pitching_forward = False
                 self.set_rc(2, 1500)
                 # disable fence
                 self.mavproxy.send('param set FENCE_ENABLE 0\n')
-            if m.alt <= 1 and home_distance < 10:
+            if alt <= 1 and home_distance < 10:
                 # reduce throttle
                 self.set_rc(3, 1000)
                 # switch mode to stabilize
@@ -667,10 +680,12 @@ class AutoTestCopter(AutoTest):
 
             # start displaying distance moved after all glitches applied
             if glitch_current == -1:
-                m = self.mav.recv_match(type='VFR_HUD', blocking=True)
+                m = self.mav.recv_match(type='GLOBAL_POSITION_INT',
+                                        blocking=True)
+                alt = m.alt/1000.0 # mm -> m
                 curr_pos = self.sim_location()
                 moved_distance = self.get_distance(curr_pos, start_pos)
-                self.progress("Alt: %u  Moved: %.0f" % (m.alt, moved_distance))
+                self.progress("Alt: %u  Moved: %.0f" % (alt, moved_distance))
                 if moved_distance > max_distance:
                     self.progress("Moved over %u meters, Failed!" %
                                   max_distance)
@@ -1117,6 +1132,98 @@ class AutoTestCopter(AutoTest):
         self.mavproxy.send('switch 5\n')  # loiter mode
         self.wait_mode('LOITER')
 
+    def fly_vision_position(self):
+        '''disable GPS navigation, enable Vicon input'''
+        # scribble down a location we can set origin to:
+
+        self.progress("Waiting for location")
+        start = self.mav.location()
+        self.mavproxy.send('switch 6\n')  # stabilize mode
+        self.mav.wait_heartbeat()
+        self.wait_mode('STABILIZE')
+        self.progress("Waiting reading for arm")
+        self.wait_ready_to_arm()
+
+        old_pos = self.mav.recv_match(type='GLOBAL_POSITION_INT', blocking=True)
+        print("old_pos=%s" % str(old_pos))
+
+        old_gps_type = self.get_parameter("GPS_TYPE")
+        old_ek2_gps_type = self.get_parameter("EK2_GPS_TYPE")
+        old_serial5_protocol = self.get_parameter("SERIAL5_PROTOCOL")
+
+        ex = None
+        try:
+            self.set_parameter("GPS_TYPE", 0)
+            self.set_parameter("EK2_GPS_TYPE", 3)
+            self.set_parameter("SERIAL5_PROTOCOL", 1)
+            self.reboot_sitl()
+            # without a GPS or some sort of external prompting, AP
+            # doesn't send system_time messages.  So prompt it:
+            self.mav.mav.system_time_send(time.time() * 1000000, 0)
+            self.mav.mav.set_gps_global_origin_send(1,
+                                                    old_pos.lat,
+                                                    old_pos.lon,
+                                                    old_pos.alt)
+            self.progress("Waiting for non-zero-lat")
+            tstart = self.get_sim_time();
+            while True:
+                gpi = self.mav.recv_match(type='GLOBAL_POSITION_INT',
+                                          blocking=True)
+#                self.progress("gpi=%s" % str(gpi))
+                if gpi.lat != 0:
+                    break
+
+                if self.get_sim_time() - tstart > 10:
+                    raise AutoTestTimeoutException()
+
+            self.takeoff(arm=True)
+            self.set_rc(1, 1600)
+            tstart = self.get_sim_time();
+            while True:
+                vicon_pos = self.mav.recv_match(type='VICON_POSITION_ESTIMATE',
+                                                blocking=True)
+#                print("vpe=%s" % str(vicon_pos))
+                gpi = self.mav.recv_match(type='GLOBAL_POSITION_INT',
+                                          blocking=True)
+#                self.progress("gpi=%s" % str(gpi))
+                if vicon_pos.x > 40:
+                    break
+
+                if self.get_sim_time() - tstart > 100:
+                    raise AutoTestTimeoutException()
+
+            # recenter controls:
+            self.set_rc(1, 1500)
+            self.progress("# Enter RTL")
+            self.mavproxy.send('switch 3\n')
+            self.set_rc(3, 1500)
+            tstart = self.get_sim_time()
+            while True:
+                if self.get_sim_time() - tstart > 200:
+                    raise NotAchievedException()
+                gpi = self.mav.recv_match(type='GLOBAL_POSITION_INT',
+                                          blocking=True)
+#                print("gpi=%s" % str(gpi))
+                ss = self.mav.recv_match(type='SIMSTATE',
+                                         blocking=True)
+#                print("ss=%s" % str(ss))
+                # wait for RTL disarm:
+                if not self.armed():
+                    break
+
+        except Exception as e:
+            self.progress("Exception caught")
+            ex = e
+
+        self.set_parameter("GPS_TYPE", old_gps_type)
+        self.set_parameter("EK2_GPS_TYPE", old_ek2_gps_type)
+        self.set_parameter("SERIAL5_PROTOCOL", old_serial5_protocol)
+        self.set_rc(3, 1000)
+        self.reboot_sitl()
+
+        if ex is not None:
+            raise ex
+
     def autotest(self):
         """Autotest ArduCopter in SITL."""
         if not self.hasInit:
@@ -1131,6 +1238,7 @@ class AutoTestCopter(AutoTest):
             self.progress("Setting up RC parameters")
             self.set_rc_default()
             self.set_rc(3, 1000)
+            self.progress("Waiting for location")
             self.homeloc = self.mav.location()
             self.progress("Home location: %s" % self.homeloc)
             self.mavproxy.send('switch 6\n')  # stabilize mode
@@ -1295,6 +1403,9 @@ class AutoTestCopter(AutoTest):
 
             # wait for disarm
             self.mav.motors_disarmed_wait()
+
+            '''vision position''' # expects vehicle to be disarmed
+            self.run_test("Fly Vision Position", self.fly_vision_position)
 
             # Download logs
             self.run_test("log download",

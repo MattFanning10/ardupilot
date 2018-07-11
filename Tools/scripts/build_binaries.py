@@ -323,15 +323,6 @@ is bob we will attempt to checkout bob-AVR'''
         '''build vehicle binaries'''
         self.progress("Building %s %s binaries (cwd=%s)" %
                       (vehicle, tag, os.getcwd()))
-        # if not self.checkout(vehicle, tag):
-        #     self.progress("Failed to check out (%s)" % tag)
-        #     return
-
-        # # begin pointless checkout
-        # if not self.checkout(vehicle, "latest"):
-        #     self.progress("Failed to check out (%s)" % "latest")
-        #     return
-        # # end pointless checkout
 
         for board in boards:
             self.progress("Building board: %s" % board)
@@ -363,6 +354,9 @@ is bob we will attempt to checkout bob-AVR'''
                 if self.skip_frame(board, frame):
                     continue
 
+                if os.path.exists(self.buildroot):
+                    shutil.rmtree(self.buildroot)
+
                 self.remove_tmpdir();
 
                 self.progress("Configuring for %s in %s" %
@@ -393,7 +387,7 @@ is bob we will attempt to checkout bob-AVR'''
                                          "bin",
                                          "".join([binaryname, framesuffix]))
                 files_to_copy = []
-                for extension in [".px4", ".apj", ".abin"]:
+                for extension in [".px4", ".apj", ".abin", "_with_bl.hex", ".hex"]:
                     filepath = "".join([bare_path, extension])
                     if os.path.exists(filepath):
                         files_to_copy.append(filepath)
@@ -430,6 +424,7 @@ is bob we will attempt to checkout bob-AVR'''
             try:
                 deadwood = "../Build.%s" % vehicle
                 if os.path.exists(deadwood):
+                    self.progress("#### Removing (%s)" % deadwood)
                     shutil.rmtree(os.path.join(deadwood))
             except Exception as e:
                 self.progress("FIXME: narrow exception (%s)" % repr(e))
@@ -449,6 +444,9 @@ is bob we will attempt to checkout bob-AVR'''
 
                 if self.skip_board_waf(px4_v):
                     continue
+
+                if os.path.exists(self.buildroot):
+                    shutil.rmtree(self.buildroot)
 
                 self.progress("Configuring for %s in %s" %
                               (px4_v, self.buildroot))
@@ -494,12 +492,26 @@ is bob we will attempt to checkout bob-AVR'''
         return ["fmuv2",
                 "fmuv3",
                 "fmuv4",
+                "fmuv5",
                 "mindpx-v2",
                 "erlebrain2",
                 "navio",
                 "navio2",
                 "pxf",
-                "pxfmini"]
+                "pxfmini",
+                "KakuteF4",
+                "MatekF405",
+                "MatekF405-Wing",
+                "OMNIBUSF7V2",
+                "sparky2",
+                "omnibusf4pro",
+                "mini-pix",
+                "airbotf4",
+                "revo-mini",
+                "CubeBlack",
+                "Pixhawk4",
+                "PH4-mini",
+                "CUAVv5"]
 
     def build_arducopter(self, tag):
         '''build Copter binaries'''
@@ -643,8 +655,6 @@ is bob we will attempt to checkout bob-AVR'''
             self.run_git_update_submodules()
         self.buildroot = os.path.join(os.environ.get("TMPDIR"),
                                       "binaries.build")
-        if os.path.exists(self.buildroot):
-            shutil.rmtree(self.buildroot)
 
         for tag in self.tags:
             self.build_arducopter(tag)

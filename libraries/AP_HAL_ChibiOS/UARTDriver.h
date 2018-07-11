@@ -22,10 +22,11 @@
 #include "shared_dma.h"
 #include "Semaphores.h"
 
-#define RX_BOUNCE_BUFSIZE 128
-#define TX_BOUNCE_BUFSIZE 64
+#define RX_BOUNCE_BUFSIZE 128U
+#define TX_BOUNCE_BUFSIZE 64U
 
-#define UART_MAX_DRIVERS 7
+// enough for uartA to uartG, plus IOMCU
+#define UART_MAX_DRIVERS 8
 
 class ChibiOS::UARTDriver : public AP_HAL::UARTDriver {
 public:
@@ -103,9 +104,6 @@ private:
     // thread used for all UARTs
     static thread_t *uart_thread_ctx;
 
-    // last time we ran the uart thread
-    static uint32_t last_thread_run_us;
-    
     // table to find UARTDrivers from serial number, used for event handling
     static UARTDriver *uart_drivers[UART_MAX_DRIVERS];
 
@@ -131,13 +129,14 @@ private:
 
     // we use in-task ring buffers to reduce the system call cost
     // of ::read() and ::write() in the main loop
-    uint8_t rx_bounce_buf[RX_BOUNCE_BUFSIZE];
-    uint8_t tx_bounce_buf[TX_BOUNCE_BUFSIZE];
+    uint8_t *rx_bounce_buf;
+    uint8_t *tx_bounce_buf;
     ByteBuffer _readbuf{0};
     ByteBuffer _writebuf{0};
     Semaphore _write_mutex;
     const stm32_dma_stream_t* rxdma;
     const stm32_dma_stream_t* txdma;
+    virtual_timer_t tx_timeout;    
     bool _in_timer;
     bool _blocking_writes;
     bool _initialised;
@@ -162,6 +161,7 @@ private:
     static void rx_irq_cb(void* sd);
     static void rxbuff_full_irq(void* self, uint32_t flags);
     static void tx_complete(void* self, uint32_t flags);
+    static void handle_tx_timeout(void *arg);
 
     void dma_tx_allocate(Shared_DMA *ctx);
     void dma_tx_deallocate(Shared_DMA *ctx);

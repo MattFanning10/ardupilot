@@ -20,6 +20,11 @@
 #define AR_ATTCONTROL_THR_SPEED_IMAX    1.00f
 #define AR_ATTCONTROL_THR_SPEED_D       0.00f
 #define AR_ATTCONTROL_THR_SPEED_FILT    10.00f
+#define AR_ATTCONTROL_PITCH_THR_P       30.0f
+#define AR_ATTCONTROL_PITCH_THR_I       10.0f
+#define AR_ATTCONTROL_PITCH_THR_D       15.0f
+#define AR_ATTCONTROL_PITCH_THR_IMAX    1.0f
+#define AR_ATTCONTROL_PITCH_THR_FILT    10.0f
 #define AR_ATTCONTROL_DT                0.02f
 #define AR_ATTCONTROL_TIMEOUT_MS        200
 
@@ -43,15 +48,18 @@ public:
     // steering controller
     //
 
-    // return a steering servo output from -1.0 to +1.0 given a desired lateral acceleration rate in m/s/s.
+    // return a steering servo output given a desired lateral acceleration rate in m/s/s.
     // positive lateral acceleration is to the right.  dt should normally be the main loop rate.
+    // return value is normally in range -1.0 to +1.0 but can be higher or lower
     float get_steering_out_lat_accel(float desired_accel, bool motor_limit_left, bool motor_limit_right, float dt);
 
-    // return a steering servo output from -1 to +1 given a heading in radians
+    // return a steering servo output given a heading in radians
+    // return value is normally in range -1.0 to +1.0 but can be higher or lower
     float get_steering_out_heading(float heading_rad, float rate_max, bool motor_limit_left, bool motor_limit_right, float dt);
 
-    // return a steering servo output from -1 to +1 given a
-    // desired yaw rate in radians/sec. Positive yaw is to the right.
+    // return a steering servo output given a desired yaw rate in radians/sec.
+    // positive yaw is to the right
+    // return value is normally in range -1.0 to +1.0 but can be higher or lower
     float get_steering_out_rate(float desired_rate, bool motor_limit_left, bool motor_limit_right, float dt);
 
     // get latest desired turn rate in rad/sec recorded during calls to get_steering_out_rate.  For reporting purposes only
@@ -81,10 +89,16 @@ public:
     // return a throttle output from -1 to +1 to perform a controlled stop.  stopped is set to true once stop has been completed
     float get_throttle_out_stop(bool motor_limit_low, bool motor_limit_high, float cruise_speed, float cruise_throttle, float dt, bool &stopped);
 
+    // for balancebot
+    // return a throttle output from -1 to +1 given a desired pitch angle
+    // desired_pitch is in radians
+    float get_throttle_out_from_pitch(float desired_pitch, bool armed, float dt);
+
     // low level control accessors for reporting and logging
     AC_P& get_steering_angle_p() { return _steer_angle_p; }
     AC_PID& get_steering_rate_pid() { return _steer_rate_pid; }
     AC_PID& get_throttle_speed_pid() { return _throttle_speed_pid; }
+    AC_PID& get_pitch_to_throttle_pid() { return _pitch_to_throttle_pid; }
 
     // get forward speed in m/s (earth-frame horizontal velocity but only along vehicle x-axis).  returns true on success
     bool get_forward_speed(float &speed) const;
@@ -119,8 +133,10 @@ private:
     AC_P     _steer_angle_p;        // steering angle controller
     AC_PID   _steer_rate_pid;       // steering rate controller
     AC_PID   _throttle_speed_pid;   // throttle speed controller
+    AC_PID   _pitch_to_throttle_pid;// balancebot pitch controller
+
     AP_Float _throttle_accel_max;   // speed/throttle control acceleration (and deceleration) maximum in m/s/s.  0 to disable limits
-    AP_Float _throttle_decel_max;    // speed/throttle control deceleration maximum in m/s/s. 0 to disable limits
+    AP_Float _throttle_decel_max;    // speed/throttle control deceleration maximum in m/s/s. 0 to use ATC_ACCEL_MAX for deceleration
     AP_Int8  _brake_enable;         // speed control brake enable/disable. if set to 1 a reversed output to the motors to slow the vehicle.
     AP_Float _stop_speed;           // speed control stop speed.  Motor outputs to zero once vehicle speed falls below this value
     AP_Float _steer_accel_max;      // steering angle acceleration max in deg/s/s
@@ -138,4 +154,7 @@ private:
     uint32_t _stop_last_ms;         // system time the vehicle was at a complete stop
     bool     _throttle_limit_low;   // throttle output was limited from going too low (used to reduce i-term buildup)
     bool     _throttle_limit_high;  // throttle output was limited from going too high (used to reduce i-term buildup)
+
+    // balancebot pitch control
+    uint32_t _balance_last_ms = 0;
 };

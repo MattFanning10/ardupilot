@@ -35,11 +35,6 @@ public:
     enum safety_state safety_switch_state(void);
 
     /*
-      set system clock in UTC microseconds
-     */
-    void set_system_clock(uint64_t time_utc_usec);
-
-    /*
       get system identifier (STM32 serial number)
      */
     bool get_system_id(char buf[40]);
@@ -65,6 +60,8 @@ public:
     void *malloc_type(size_t size, AP_HAL::Util::Memory_Type mem_type) override;
     void free_type(void *ptr, size_t size, AP_HAL::Util::Memory_Type mem_type) override;
 
+    bool flash_bootloader() override;
+    
 private:
     int _safety_handle;
     PX4::NSHShellStream _shell_stream;

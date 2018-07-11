@@ -31,8 +31,8 @@ def build(bld):
             'AP_Beacon',
             'PID',
             'AP_Soaring',
-            'AP_Gripper',
             'AP_Devo_Telem',
+            'AP_OSD',
         ],
     )
 

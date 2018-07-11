@@ -78,21 +78,7 @@ AC_WPNav::AC_WPNav(const AP_InertialNav& inav, const AP_AHRS_View& ahrs, AC_PosC
     _inav(inav),
     _ahrs(ahrs),
     _pos_control(pos_control),
-    _attitude_control(attitude_control),
-    _wp_last_update(0),
-    _wp_step(0),
-    _track_length(0.0f),
-    _track_length_xy(0.0f),
-    _track_desired(0.0f),
-    _limited_speed_xy_cms(0.0f),
-    _track_accel(0.0f),
-    _track_speed(0.0f),
-    _track_leash_length(0.0f),
-    _slow_down_dist(0.0f),
-    _spline_time(0.0f),
-    _spline_time_scale(0.0f),
-    _spline_vel_scaler(0.0f),
-    _yaw(0.0f)
+    _attitude_control(attitude_control)
 {
     AP_Param::setup_object_defaults(this, var_info);
 
@@ -370,7 +356,7 @@ bool AC_WPNav::advance_wp_target_along_track(float dt)
     track_error = curr_delta - track_covered_pos;
 
     // calculate the horizontal error
-    float track_error_xy = norm(track_error.x, track_error.y);
+    _track_error_xy = norm(track_error.x, track_error.y);
 
     // calculate the vertical error
     float track_error_z = fabsf(track_error.z);
@@ -383,7 +369,7 @@ bool AC_WPNav::advance_wp_target_along_track(float dt)
     //   track_error is the line from the vehicle to the closest point on the track.  It is the "opposite" side
     //   track_leash_slack is the line from the closest point on the track to the target point.  It is the "adjacent" side.  We adjust this so the track_desired_max is no longer than the leash
     float track_leash_length_abs = fabsf(_track_leash_length);
-    float track_error_max_abs = MAX(_track_leash_length*track_error_z/leash_z, _track_leash_length*track_error_xy/_pos_control.get_leash_xy());
+    float track_error_max_abs = MAX(_track_leash_length*track_error_z/leash_z, _track_leash_length*_track_error_xy/_pos_control.get_leash_xy());
     track_leash_slack = (track_leash_length_abs > track_error_max_abs) ? safe_sqrt(sq(_track_leash_length) - sq(track_error_max_abs)) : 0;
     track_desired_max = track_covered + track_leash_slack;
 
@@ -400,7 +386,7 @@ bool AC_WPNav::advance_wp_target_along_track(float dt)
     // calculate point at which velocity switches from linear to sqrt
     float linear_velocity = _wp_speed_cms;
     float kP = _pos_control.get_pos_xy_p().kP();
-    if (kP >= 0.0f) {   // avoid divide by zero
+    if (is_positive(kP)) {   // avoid divide by zero
         linear_velocity = _track_accel/kP;
     }
 
@@ -879,7 +865,7 @@ bool AC_WPNav::advance_spline_target_along_track(float dt)
         track_error.z -= terr_offset;
 
         // calculate the horizontal error
-        float track_error_xy = norm(track_error.x, track_error.y);
+        _track_error_xy = norm(track_error.x, track_error.y);
 
         // calculate the vertical error
         float track_error_z = fabsf(track_error.z);
@@ -894,7 +880,7 @@ bool AC_WPNav::advance_spline_target_along_track(float dt)
         }
 
         // calculate how far along the track we could move the intermediate target before reaching the end of the leash
-        float track_leash_slack = MIN(_track_leash_length*(leash_z-track_error_z)/leash_z, _track_leash_length*(leash_xy-track_error_xy)/leash_xy);
+        float track_leash_slack = MIN(_track_leash_length*(leash_z-track_error_z)/leash_z, _track_leash_length*(leash_xy-_track_error_xy)/leash_xy);
         if (track_leash_slack < 0.0f) {
             track_leash_slack = 0.0f;
         }
@@ -973,17 +959,16 @@ void AC_WPNav::calc_spline_pos_vel(float spline_time, Vector3f& position, Vector
 // get terrain's altitude (in cm above the ekf origin) at the current position (+ve means terrain below vehicle is above ekf origin's altitude)
 bool AC_WPNav::get_terrain_offset(float& offset_cm)
 {
-#if AP_TERRAIN_AVAILABLE
     // use range finder if connected
     if (_rangefinder_available && _rangefinder_use) {
         if (_rangefinder_healthy) {
             offset_cm = _inav.get_altitude() - _rangefinder_alt_cm;
             return true;
-        } else {
-            return false;
         }
+        return false;
     }
 
+#if AP_TERRAIN_AVAILABLE
     // use terrain database
     float terr_alt = 0.0f;
     if (_terrain != nullptr && _terrain->height_above_terrain(terr_alt, true)) {
