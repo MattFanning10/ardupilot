@@ -99,11 +99,11 @@ const AP_Param::GroupInfo RC_Channels::var_info[] = {
 
     // @Param: _OVERRIDE_TIME
     // @DisplayName: RC override timeout
-    // @Description: Timeout after which RC overrides will no longer be used, and RC input will resume, 0 will disable RC overrides
+    // @Description: Timeout after which RC overrides will no longer be used, and RC input will resume, 0 will disable RC overrides, -1 will never timeout, and continue using overrides until they are disabled
     // @User: Advanced
     // @Range: 0.0 120.0
     // @Units: s
-    AP_GROUPINFO("_OVERRIDE_TIME", 32, RC_Channels, _override_timeout, 3.0),
+    AP_GROUPINFO("_OVERRIDE_TIME", 32, RC_Channels, _override_timeout, -1),
     
     AP_GROUPEND
 };
